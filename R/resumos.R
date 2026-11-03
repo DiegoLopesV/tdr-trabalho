@@ -1,4 +1,4 @@
-# Meses sem registro permanecem NA; médias e totais usam só os registros válidos.
+# Ausentes ficam como NA; médias e totais usam só os registros válidos.
 resumir_unidades <- function(dados) {
   dados |>
     group_by(ano, codigo, nome, estrutura) |>

@@ -23,5 +23,7 @@ list(
   tar_target(resumo_ano, resumir_anos(dados)),
   tar_target(sazonalidade, resumir_sazonalidade(dados)),
   tar_target(resumo_mes, resumir_meses(dados)),
+  tar_target(grafico_sazonalidade, figura_sazonalidade(sazonalidade)),
+  tar_target(grafico_categorias, figura_categorias(dados)),
   tar_quarto(relatorio, "relatorio.qmd")
 )
