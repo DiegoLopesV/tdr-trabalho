@@ -1,6 +1,8 @@
 # tdr-trabalho
 
-Trabalho intermediário de Tecnologia de Dados, de Diego Lopes Vieira.
+Trabalho intermediário de Tecnologia de Dados: geração de energia solar.
+
+Autor: Diego Lopes Vieira.
 O projeto transforma a análise da Lista 03 em um pipeline reprodutível de
 geração de energia solar, usando dados simulados para o login `diegolopesv`.
 
