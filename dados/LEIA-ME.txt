@@ -1,0 +1,29 @@
+Lista 03 --- dados sorteados para o login diegolopesv
+
+Tema: Energia gerada pelas usinas solares de uma cooperativa
+Unidade de observação: usina
+
+Arquivos
+
+  geracao_2023.csv, geracao_2024.csv, geracao_2025.csv
+      Uma linha por unidade e uma coluna por mês do ano. A coluna
+      codigo identifica a unidade, e as colunas jan a dez trazem o
+      valor medido: energia gerada no mês, em MWh.
+      Mês sem registro aparece como "-".
+
+  cadastro.csv
+      Uma linha por unidade, com as colunas:
+        codigo        identificador da unidade, o mesmo das medições
+        nome          nome da unidade
+        estrutura     categoria: Fixa ou Com rastreador
+        potencia_kwp  porte: potência instalada, em kWp
+
+Conferência
+
+  unidades no cadastro:   12
+  unidades com medições:  11
+
+  ano    meses sem registro    soma dos valores registrados
+  2023                    5                         14253,2
+  2024                    2                         13765,3
+  2025                    5                         12808,7

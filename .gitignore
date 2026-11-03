@@ -1,0 +1,13 @@
+_targets/
+relatorio.html
+relatorio_files/
+relatorio_cache/
+analise.html
+analise_files/
+.quarto/
+.Rhistory
+.Rapp.history
+.RData
+.RDataTmp
+.Ruserdata
+.Rproj.user/

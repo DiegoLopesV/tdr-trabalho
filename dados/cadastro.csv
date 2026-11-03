@@ -1,0 +1,13 @@
+codigo;nome;estrutura;potencia_kwp
+SO01;Usina Lapa;Com rastreador;312
+SO02;Usina Maringá;Com rastreador;291
+SO03;Usina Guarapuava;Com rastreador;1392
+SO04;Usina São José dos Pinhais;Fixa;580
+SO05;Usina Londrina;Fixa;696
+SO06;Usina Apucarana;Fixa;1733
+SO07;Usina Pato Branco;Fixa;1583
+SO08;Usina Foz do Iguaçu;Fixa;586
+SO09;Usina Telêmaco Borba;Com rastreador;1059
+SO10;Usina Castro;Fixa;620
+SO11;Usina Antonina;Com rastreador;210
+SO12;Usina Paranavaí;Com rastreador;754

@@ -1,0 +1,264 @@
+---
+title: "Energia gerada pelas usinas solares de uma cooperativa"
+author: "Diego Lopes Vieira"
+lang: pt-BR
+format:
+  html:
+    embed-resources: true
+execute:
+  echo: true
+---
+
+# Exercício 1 — O documento e a leitura
+
+O `LEIA-ME.txt` informa que cada linha dos arquivos anuais representa uma usina, que a energia mensal está em MWh e que `-` significa mês sem registro. Há 12 unidades no cadastro e 11 com medições.
+
+Antes da leitura no R, examinei os arquivos no terminal com `Get-Content -TotalCount 4 dados/cadastro.csv`, `Get-Content -TotalCount 4 dados/geracao_2023.csv` e `Format-Hex -Path dados/cadastro.csv`. Ambos usam `;` como separador de campos. No arquivo anual, `54,0` confirma a vírgula decimal, e `-` aparece em meses sem registro. No cadastro, o byte `E1` em *Maringá* identifica a codificação Windows-1252; os dados do arquivo anual são ASCII, compatíveis com UTF-8.
+
+```{r}
+library(readr)
+Sys.setlocale("LC_CTYPE", "")
+
+cadastro <- read_delim(
+  "dados/cadastro.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ",", encoding = "Windows-1252"),
+  na = "-",
+  col_types = cols(
+    codigo = col_character(),
+    nome = col_character(),
+    estrutura = col_character(),
+    potencia_kwp = col_double()
+  ),
+  show_col_types = FALSE
+)
+
+geracao_2023 <- read_delim(
+  "dados/geracao_2023.csv",
+  delim = ";",
+  locale = locale(decimal_mark = ",", encoding = "UTF-8"),
+  na = "-",
+  col_types = cols(
+    codigo = col_character(),
+    jan = col_double(), fev = col_double(), mar = col_double(),
+    abr = col_double(), mai = col_double(), jun = col_double(),
+    jul = col_double(), ago = col_double(), set = col_double(),
+    out = col_double(), nov = col_double(), dez = col_double()
+  ),
+  show_col_types = FALSE
+)
+
+stopifnot(
+  nrow(cadastro) == 12,
+  nrow(geracao_2023) == 11,
+  ncol(geracao_2023) == 13,
+  is.character(geracao_2023$codigo),
+  all(vapply(geracao_2023[-1], is.double, logical(1))),
+  sum(is.na(geracao_2023[-1])) == 5,
+  isTRUE(all.equal(sum(unlist(geracao_2023[-1]), na.rm = TRUE), 14253.2))
+)
+
+str(geracao_2023)
+knitr::kable(cadastro, caption = "Cadastro das 12 usinas")
+knitr::kable(geracao_2023, caption = "Valores mensais das 11 usinas em 2023 (MWh)")
+```
+
+# Exercício 2 — Arrumar a tabela
+
+Cada coluna de mês da tabela anual passa a ser um valor da coluna `mes`. A coluna `energia_mwh` guarda a energia gerada pela usina naquele mês. Os níveis do fator seguem janeiro a dezembro.
+
+```{r}
+meses <- c(
+  "jan", "fev", "mar", "abr", "mai", "jun",
+  "jul", "ago", "set", "out", "nov", "dez"
+)
+
+geracao_2023_longa <- geracao_2023 |>
+  tidyr::pivot_longer(
+    cols = dplyr::all_of(meses),
+    names_to = "mes",
+    values_to = "energia_mwh"
+  ) |>
+  dplyr::mutate(mes = forcats::fct_relevel(mes, meses))
+
+linhas <- nrow(geracao_2023_longa)
+ausentes <- sum(is.na(geracao_2023_longa$energia_mwh))
+
+stopifnot(
+  ncol(geracao_2023_longa) == 3,
+  linhas == nrow(geracao_2023) * 12,
+  linhas == 132,
+  ausentes == 5,
+  is.factor(geracao_2023_longa$mes),
+  identical(levels(geracao_2023_longa$mes), meses)
+)
+
+str(geracao_2023_longa)
+data.frame(linhas = linhas, valores_ausentes = ausentes)
+knitr::kable(geracao_2023_longa, caption = "Energia mensal em 2023 (MWh)")
+```
+
+# Exercício 3 — Juntar ao cadastro
+
+A junção à esquerda mantém cada par de usina e mês da tabela longa e acrescenta as informações do cadastro. Cada código da tabela longa deve encontrar no máximo uma linha no cadastro.
+
+```{r}
+geracao_2023_cadastro <- geracao_2023_longa |>
+  dplyr::left_join(cadastro, by = "codigo", relationship = "many-to-one") |>
+  dplyr::mutate(energia_mwh_por_kwp = energia_mwh / potencia_kwp)
+
+linhas_antes <- nrow(geracao_2023_longa)
+linhas_depois <- nrow(geracao_2023_cadastro)
+
+stopifnot(
+  linhas_antes == linhas_depois,
+  linhas_depois == 132,
+  !anyNA(geracao_2023_cadastro$nome),
+  !anyNA(geracao_2023_cadastro$potencia_kwp)
+)
+
+data.frame(linhas_antes = linhas_antes, linhas_depois = linhas_depois)
+knitr::kable(geracao_2023_cadastro, caption = "Energia mensal e porte das usinas em 2023")
+```
+
+A junção filtrante abaixo encontra no cadastro a usina sem qualquer medição em 2023.
+
+```{r}
+sem_medicao <- cadastro |>
+  dplyr::anti_join(geracao_2023_longa, by = "codigo")
+
+stopifnot(nrow(sem_medicao) == 1)
+knitr::kable(sem_medicao[, c("codigo", "nome")])
+```
+
+# Exercício 4 — Resumir por grupo
+
+Um mês sem registro representa uma medição desconhecida, não geração zero. Por isso, os valores ausentes continuam como `NA` e são excluídos das médias mensais. Essa decisão afeta as médias relativas e a contagem de meses com registro; não afeta os totais anuais, que somam apenas os valores registrados.
+
+```{r}
+resumo_unidade <- geracao_2023_cadastro |>
+  dplyr::group_by(codigo, nome, estrutura) |>
+  dplyr::summarise(
+    meses_com_registro = sum(!is.na(energia_mwh)),
+    total_ano_mwh = sum(energia_mwh, na.rm = TRUE),
+    media_mensal_mwh_por_kwp = mean(energia_mwh_por_kwp, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  dplyr::arrange(dplyr::desc(media_mensal_mwh_por_kwp))
+
+resumo_categoria <- geracao_2023_cadastro |>
+  dplyr::group_by(estrutura) |>
+  dplyr::summarise(
+    unidades = dplyr::n_distinct(codigo),
+    total_ano_mwh = sum(energia_mwh, na.rm = TRUE),
+    media_mensal_mwh_por_kwp = mean(energia_mwh_por_kwp, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+stopifnot(
+  nrow(resumo_unidade) == 11,
+  sum(resumo_unidade$meses_com_registro) == 127,
+  sum(resumo_categoria$unidades) == 11,
+  isTRUE(all.equal(sum(resumo_unidade$total_ano_mwh), 14253.2)),
+  isTRUE(all.equal(sum(resumo_categoria$total_ano_mwh), 14253.2))
+)
+
+knitr::kable(resumo_unidade, digits = 4, caption = "Resumo por usina em 2023")
+knitr::kable(resumo_categoria, digits = 4, caption = "Resumo por categoria em 2023")
+```
+
+O total registrado em 2023 foi de `r format(sum(resumo_categoria$total_ano_mwh), big.mark = ".", decimal.mark = ",", nsmall = 1)` MWh.
+
+# Exercício 5 — Todos os anos de uma vez
+
+Foram selecionados apenas os arquivos cujo nome segue o padrão `geracao_aaaa.csv`. A cadeia anterior continuou válida porque os meses já eram selecionados explicitamente; foi necessário apenas preservar `origem` e `ano` e incluir `ano` no agrupamento final.
+
+```{r}
+arquivos_anuais <- list.files(
+  "dados",
+  pattern = "^geracao_[0-9]{4}\\.csv$",
+  full.names = TRUE
+) |>
+  sort()
+arquivos_anuais <- stats::setNames(arquivos_anuais, basename(arquivos_anuais))
+
+geracao_anos <- arquivos_anuais |>
+  purrr::map(\(arquivo) {
+    read_delim(
+      arquivo,
+      delim = ";",
+      locale = locale(decimal_mark = ",", encoding = "UTF-8"),
+      na = "-",
+      col_types = cols(
+        codigo = col_character(),
+        jan = col_double(), fev = col_double(), mar = col_double(),
+        abr = col_double(), mai = col_double(), jun = col_double(),
+        jul = col_double(), ago = col_double(), set = col_double(),
+        out = col_double(), nov = col_double(), dez = col_double()
+      ),
+      show_col_types = FALSE
+    )
+  }) |>
+  dplyr::bind_rows(.id = "origem") |>
+  dplyr::mutate(ano = parse_number(origem))
+
+geracao_empilhada <- geracao_anos |>
+  tidyr::pivot_longer(
+    cols = dplyr::all_of(meses),
+    names_to = "mes",
+    values_to = "energia_mwh"
+  ) |>
+  dplyr::mutate(mes = forcats::fct_relevel(mes, meses)) |>
+  dplyr::left_join(cadastro, by = "codigo", relationship = "many-to-one") |>
+  dplyr::mutate(energia_mwh_por_kwp = energia_mwh / potencia_kwp)
+
+conferencia_anos <- geracao_empilhada |>
+  dplyr::group_by(ano) |>
+  dplyr::summarise(
+    meses_sem_registro = sum(is.na(energia_mwh)),
+    soma_valores_registrados = sum(energia_mwh, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+tabela_apresentacao <- geracao_empilhada |>
+  dplyr::group_by(estrutura, ano) |>
+  dplyr::summarise(
+    total_ano_mwh = sum(energia_mwh, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  tidyr::pivot_wider(
+    names_from = ano,
+    values_from = total_ano_mwh
+  )
+
+somas_apresentacao <- tabela_apresentacao |>
+  dplyr::summarise(dplyr::across(-estrutura, sum))
+
+stopifnot(
+  length(arquivos_anuais) == 3,
+  nrow(geracao_anos) == 33,
+  nrow(geracao_empilhada) == 3 * nrow(geracao_2023_longa),
+  nrow(geracao_empilhada) == 396,
+  identical(conferencia_anos$meses_sem_registro, c(5L, 2L, 5L)),
+  isTRUE(all.equal(
+    conferencia_anos$soma_valores_registrados,
+    c(14253.2, 13765.3, 12808.7)
+  )),
+  isTRUE(all.equal(
+    unname(unlist(somas_apresentacao)),
+    c(14253.2, 13765.3, 12808.7)
+  ))
+)
+
+knitr::kable(
+  geracao_empilhada,
+  caption = "Tabela empilhada dos três anos"
+)
+knitr::kable(conferencia_anos, digits = 1, caption = "Conferência por ano")
+knitr::kable(somas_apresentacao, digits = 1, caption = "Somas das colunas")
+knitr::kable(
+  tabela_apresentacao,
+  digits = 1,
+  caption = "Total de cada categoria em cada ano (MWh)"
+)
+```
