@@ -1,0 +1,13 @@
+---
+title: "Energia gerada pelas usinas solares de uma cooperativa"
+author: "Diego Lopes Vieira"
+lang: pt-BR
+format:
+  html:
+    embed-resources: true
+---
+
+```{r}
+#| echo: false
+targets::tar_read(conferencia)
+```
