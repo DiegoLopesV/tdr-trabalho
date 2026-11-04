@@ -1,0 +1,173 @@
+---
+title: "Energia gerada pelas usinas solares de uma cooperativa"
+author: "Diego Lopes Vieira"
+lang: pt-BR
+format:
+  html:
+    embed-resources: true
+    toc: true
+    number-sections: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+targets::tar_load(c(
+  cadastro, sem_medicao, conferencia, resumo_ano, resumo_categoria,
+  resumo_unidade, resumo_categoria_ano, resumo_mes,
+  grafico_sazonalidade, grafico_categorias
+))
+```
+
+# Os dados
+
+Este relatório analisa dados simulados para o login **diegolopesv**,
+sobre a geração de energia solar de uma cooperativa. O cadastro contém
+`r nrow(cadastro)` usinas, das quais
+`r length(unique(resumo_unidade$codigo))` têm medições. A unidade
+`r sem_medicao$codigo`, `r sem_medicao$nome`, não possui medições no período.
+Cada observação corresponde à energia gerada por uma usina em um mês, em MWh.
+A medida relativa divide essa energia pela potência instalada em kWp,
+permitindo comparar usinas de portes diferentes.
+
+A @tbl-conferencia confere os registros anuais com o `LEIA-ME.txt`:
+as contagens de ausentes e as somas coincidem com as fornecidas no arquivo.
+As linhas incluem os meses sem registro.
+
+```{r}
+#| label: tbl-conferencia
+#| tbl-cap: >-
+#|   Conferência anual: linhas de usina e mês, usinas, meses sem registro e
+#|   energia registrada (MWh).
+knitr::kable(
+  conferencia, digits = 1,
+  col.names = c("Ano", "Linhas", "Usinas", "Sem registro", "Energia (MWh)"),
+  format.args = list(decimal.mark = ",", big.mark = "")
+)
+```
+
+Um mês sem registro representa uma medição desconhecida. Os ausentes permanecem
+como `NA`, são excluídos das médias e não são substituídos por zero.
+Os totais somam somente os valores registrados, portanto não estimam a energia
+que deixou de ser informada. A contagem de registros válidos acompanha os
+resumos para explicitar essa cobertura.
+
+# Sazonalidade
+
+A @fig-sazonalidade mostra a média mensal da energia relativa em cada ano.
+Reunindo os anos e usando apenas as medições válidas, o mês de maior média é
+**`r as.character(resumo_mes$mes[which.max(resumo_mes$media_mwh_por_kwp)])`**,
+com `r format(round(max(resumo_mes$media_mwh_por_kwp), 4), decimal.mark = ",", nsmall = 4, digits = 4)` MWh/kWp.
+O mês de menor média é
+**`r as.character(resumo_mes$mes[which.min(resumo_mes$media_mwh_por_kwp)])`**,
+com `r format(round(min(resumo_mes$media_mwh_por_kwp), 4), decimal.mark = ",", nsmall = 4, digits = 4)` MWh/kWp.
+A comparação descreve a sazonalidade destes dados simulados;
+diferenças na disponibilidade de medições também podem afetar as médias.
+
+```{r}
+#| label: fig-sazonalidade
+#| fig-cap: >-
+#|   Média da energia mensal por potência instalada (MWh/kWp), por mês e ano,
+#|   entre as usinas com registro.
+#| fig-width: 8
+#| fig-height: 4.5
+targets::tar_read(grafico_sazonalidade)
+```
+
+# Variação entre `r min(resumo_ano$ano)` e `r max(resumo_ano$ano)`
+
+A @tbl-anos apresenta a média da medida relativa, o número de registros válidos
+e o total registrado em cada ano. Entre
+`r min(resumo_ano$ano)` e `r max(resumo_ano$ano)`, a variação da média foi de
+`r format(100 * (tail(resumo_ano$media_mwh_por_kwp, 1) / head(resumo_ano$media_mwh_por_kwp, 1) - 1), decimal.mark = ",", nsmall = 2, digits = 4)`%.
+A variação é calculada como a razão entre a última e a primeira média,
+menos a unidade, expressa em porcentagem.
+
+Usamos a média da medida relativa porque o total depende da potência instalada
+e do número de meses observados. A média compara a geração por unidade de
+potência entre as observações disponíveis. Ela não elimina possíveis efeitos
+dos meses ausentes, por isso o resultado é descritivo e não uma estimativa
+causal da mudança anual.
+
+```{r}
+#| label: tbl-anos
+#| tbl-cap: >-
+#|   Registros mensais válidos, energia total registrada e média mensal da
+#|   energia relativa em cada ano.
+knitr::kable(
+  resumo_ano, digits = c(0, 0, 1, 4),
+  col.names = c("Ano", "Registros", "Energia (MWh)", "Média (MWh/kWp)"),
+  format.args = list(decimal.mark = ",", big.mark = "")
+)
+```
+
+# Diferenças entre categorias
+
+A @fig-categorias compara as distribuições das medições mensais relativas
+por tipo de estrutura, reunindo todos os anos. A @tbl-categorias apresenta
+as respectivas médias. A maior é a de
+**`r resumo_categoria$estrutura[which.max(resumo_categoria$media_mwh_por_kwp)]`**,
+com `r format(max(resumo_categoria$media_mwh_por_kwp), decimal.mark = ",", nsmall = 4, digits = 4)` MWh/kWp;
+a menor é a de
+**`r resumo_categoria$estrutura[which.min(resumo_categoria$media_mwh_por_kwp)]`**,
+com `r format(min(resumo_categoria$media_mwh_por_kwp), decimal.mark = ",", nsmall = 4, digits = 4)` MWh/kWp.
+As médias atribuem o mesmo peso a cada medição mensal disponível.
+A comparação conjunta de categorias e anos não isola efeitos de calendário
+nem demonstra uma vantagem causal de determinada estrutura.
+
+```{r}
+#| label: fig-categorias
+#| fig-cap: >-
+#|   Distribuição da energia mensal relativa (MWh/kWp) por estrutura, com
+#|   todos os anos e apenas registros válidos. A caixa indica os quartis e a
+#|   linha central indica a mediana.
+#| fig-width: 7
+#| fig-height: 4.5
+targets::tar_read(grafico_categorias)
+```
+
+```{r}
+#| label: tbl-categorias
+#| tbl-cap: >-
+#|   Usinas, registros válidos, energia total e média mensal relativa por
+#|   estrutura no período completo.
+knitr::kable(
+  resumo_categoria, digits = c(0, 0, 0, 1, 4),
+  col.names = c(
+    "Estrutura", "Usinas", "Registros", "Energia (MWh)", "Média (MWh/kWp)"
+  ),
+  format.args = list(decimal.mark = ",", big.mark = "")
+)
+```
+
+# Tabelas da Lista 03
+
+A @tbl-unidades detalha os resumos de cada usina em cada ano, ordenados
+pela média relativa dentro do ano. A @tbl-categoria-ano reapresenta os totais
+de energia por estrutura e ano. Essas somas incluem somente os meses com registro.
+
+```{r}
+#| label: tbl-unidades
+#| tbl-cap: >-
+#|   Registros mensais válidos, energia anual registrada e média relativa de
+#|   cada usina em cada ano.
+knitr::kable(
+  resumo_unidade, digits = c(0, 0, 0, 0, 0, 1, 4),
+  col.names = c(
+    "Ano", "Código", "Usina", "Estrutura", "Registros",
+    "Energia (MWh)", "Média (MWh/kWp)"
+  ),
+  format.args = list(decimal.mark = ",", big.mark = "")
+)
+```
+
+```{r}
+#| label: tbl-categoria-ano
+#| tbl-cap: "Total registrado de energia (MWh) de cada estrutura em cada ano."
+knitr::kable(
+  resumo_categoria_ano, digits = 1,
+  format.args = list(decimal.mark = ",", big.mark = "")
+)
+```

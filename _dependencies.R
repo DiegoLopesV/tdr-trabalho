@@ -1,0 +1,6 @@
+library(quarto)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
